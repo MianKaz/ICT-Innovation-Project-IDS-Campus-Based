@@ -1,23 +1,75 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-         <meta charset="utf-8"/>
-  <meta name="description" content="ICT30016" />
-  <meta name="keywords" content="HTML5, tags" />
-  <meta name="author" content="105802939"  />
-  <title>index.html</title>
-  <link href="style/style.css" rel="stylesheet" type="text/css" />
-    </head>
-    <header>
-        <h1>Dashboard</h1>
-    </header>
-    <body>
-    <nav class="menu">
-    <a href="history.html" class="footer-btn"> History </a>
-    <a href="activities.html" class="footer-btn"> Activities </a>
-    <a href="alert.html" class="footer-btn"> Alert </a>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus IDS Monitoring Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Campus IDS</h2>
+        <ul>
+            <li id="nav-dashboard" class="active"><a href="index.html">Live Dashboard</a></li>
+            <li id="nav-hostory"><a href="history.html">History</a></li>
+            <li id="nav-notification"><a href="notification.html">Notification</a></li>
+        </ul>
+    </div>
+    
+    <div class="main-content">
+        <header>
+            <h1>Campus IDS Dashboard</h1>
+            <div class="system-status">
+                Status: <span id="status-indicator" class="status online">Active</span>
+            </div>
+        </header>
 
-    </nav>
+        <section class="cards-grid">
+            <div class="card">
+                <h3>Total Alerts</h3>
+                <p id="total-alerts" class="stat-number">0</p>
+            </div>
+            <div class="card warning">
+                <h3>High Confidence Threats</h3>
+                <p id="high-alerts" class="stat-number">0</p>
+            </div>
+            <div class="card info">
+                <h3>Signature Matches</h3>
+                <p id="sig-threats" class="stat-number">0</p>
+            </div>
+            <div class="card success">
+                <h3>Anomaly Detections</h3>
+                <p id="anomaly-threats" class="stat-number">0</p>
+            </div>
+        </section>
 
-    </body>
-    </html>
+        <section class="chart-and-actions">
+            <div class="chart-container">
+                <h3>Threat Distribution</h3>
+                <canvas id="threatChart"></canvas>
+            </div>
+        </section>
+
+        <section class="table-container">
+            <h3>Real-Time Alert Feed</h3>
+            <table id="alerts-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Threat Type</th>
+                        <th>Source IP</th>
+                        <th>Source Port</th>
+                        <th>Destination IP</th>
+                        <th>Destination Port</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-body">
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

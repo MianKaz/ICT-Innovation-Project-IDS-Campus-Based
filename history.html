@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alert History</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Campus IDS</h2>
+        <ul>
+            <li id="nav-dashboard"><a href="index.html">Live Dashboard</a></li>
+            <li id="nav-history" class="active"><a href="history.html">History</a></li>
+            <li id="nav-notification"><a href="notification.html">Notification</a></li>
+        </ul>
+    </div>
+    
+    <div class="main-content">
+        <header>
+            <h1>Historical Threat Logs</h1>
+            <div class="system-status">
+                Status: <span id="status-indicator" class="status online">Active</span>
+            </div>
+        </header>
+
+        <section class="actions-container" style="margin-bottom: 2rem;">
+            <h3>Log Export Controls</h3>
+            <div style="display: flex; gap: 1rem;">
+                <button id="export-json-btn" class="btn">Export Logs (JSON)</button>
+                <button id="export-csv-btn" class="btn secondary">Export Logs (CSV)</button>
+            </div>
+        </section>
+
+        <section class="table-container">
+            <h3>All Historical Alert Logs</h3>
+            <table id="history-alerts-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>Source IP</th>
+                        <th>Src Port</th>
+                        <th>Dest IP</th>
+                        <th>Dest Port</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody id="history-alerts-body">
+                </tbody>
+            </table>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
