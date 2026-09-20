@@ -119,7 +119,7 @@ if __name__ == "__main__":
     # NETWORK INTERFACE
 
     interface = (
-        "YOUR_NETWORK_INTERFACE"
+        "Wi-Fi"
     )
 
     ids = IntrusionDetectionSystem(
