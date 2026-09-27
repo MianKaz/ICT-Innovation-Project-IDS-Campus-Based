@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus IDS - Notifications</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Campus IDS</h2>
+        <ul>
+            <li id="nav-dashboard"><a href="index.html">Live Dashboard</a></li>
+            <li id="nav-history"><a href="history.html">History</a></li>
+            <li id="nav-notification" class="active"><a href="notification.html">Notification</a></li>
+        </ul>
+    </div>
+    
+    <div class="main-content">
+        <header>
+            <h1>High-Risk Threat Notifications</h1>
+            <div class="system-status">
+                Status: <span id="status-indicator" class="status online">Active</span>
+            </div>
+        </header>
+
+        <section class="notification-container" id="notification-list">
+            <!-- example -->
+            <div class="notification-card">
+                <div class="notification-info">
+                    <h4>SYN Flood Attack Detected</h4>
+                    <p>Source IP: 192.168.1.105 &rarr; Destination Port: 80 (Confidence: 0.98)</p>
+                </div>
+                <div class="notification-meta">
+                    <span class="badge-high">HIGH RISK</span>
+                    <div class="time-text">2026-09-27 14:25:10</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
