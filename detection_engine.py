@@ -1,119 +1,31 @@
-from sklearn.ensemble import IsolationForest
-import numpy as np
-
-
 class DetectionEngine:
 
-    def __init__(self):
-
-        self.anomaly_detector = IsolationForest(
-            contamination=0.1,
-            random_state=42
-        )
-
-        self.signature_rules = (
-            self.load_signature_rules()
-        )
-
-        self.training_data = []
-
-        self.model_trained = False
-
-    def load_signature_rules(self):
-
-        return {
-
-            'syn_flood': {
-
-                'condition': lambda features: (
-                    features['tcp_flags'] == 2
-                    and
-                    features['packet_rate'] > 100
-                )
-
-            },
-
-            'port_scan': {
-
-                'condition': lambda features: (
-                    features['packet_size'] < 100
-                    and
-                    features['packet_rate'] > 50
-                )
-
-            }
-
-        }
-
-    def train_anomaly_detector(
-        self,
-        normal_traffic_data
-    ):
-
-        self.anomaly_detector.fit(
-            normal_traffic_data
-        )
-
-        self.model_trained = True
+    # These are simple starting thresholds; tune them against campus traffic.
+    SYN_FLOOD_THRESHOLD = 100
+    PORT_SCAN_THRESHOLD = 10
 
     def detect_threats(self, features):
 
         threats = []
 
-        # -------------------------
-        # Signature-based detection
-        # -------------------------
+        # Count SYN packets across connections to the same destination host.
+        syn_count = features['syn_count_1s']
+        if syn_count >= self.SYN_FLOOD_THRESHOLD:
+            threats.append({
+                'type': 'signature',
+                'rule': 'syn_flood',
+                'confidence': 1.0,
+                'syn_count_1s': syn_count
+            })
 
-        for rule_name, rule in (
-            self.signature_rules.items()
-        ):
-
-            if rule['condition'](features):
-
-                threats.append({
-
-                    'type': 'signature',
-
-                    'rule': rule_name,
-
-                    'confidence': 1.0
-
-                })
-
-        # -------------------------
-        # Anomaly-based detection
-        # -------------------------
-
-        if self.model_trained:
-
-            feature_vector = np.array([[
-
-                features['packet_size'],
-
-                features['packet_rate'],
-
-                features['byte_rate']
-
-            ]])
-
-            anomaly_score = (
-                self.anomaly_detector
-                .score_samples(feature_vector)[0]
-            )
-
-            if anomaly_score < -0.5:
-
-                threats.append({
-
-                    'type': 'anomaly',
-
-                    'score': anomaly_score,
-
-                    'confidence': min(
-                        1.0,
-                        abs(anomaly_score)
-                    )
-
-                })
+        # Count distinct SYN destination ports from one source to one host.
+        port_count = features['unique_syn_destination_ports']
+        if port_count >= self.PORT_SCAN_THRESHOLD:
+            threats.append({
+                'type': 'signature',
+                'rule': 'port_scan',
+                'confidence': 1.0,
+                'unique_destination_ports': port_count
+            })
 
         return threats
