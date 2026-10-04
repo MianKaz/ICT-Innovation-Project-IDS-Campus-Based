@@ -1,7 +1,9 @@
 import queue
+import threading
 
 from scapy.all import IP, TCP
 
+from api import create_app
 from packet_capture import PacketCapture
 from traffic_analyzer import TrafficAnalyzer
 from detection_engine import DetectionEngine
@@ -115,9 +117,6 @@ class IntrusionDetectionSystem:
 
 if __name__ == "__main__":
 
-    # CHANGE THIS TO YOUR ACTUAL
-    # NETWORK INTERFACE
-
     interface = (
         "Wi-Fi"
     )
@@ -125,5 +124,12 @@ if __name__ == "__main__":
     ids = IntrusionDetectionSystem(
         interface
     )
+
+    
+    app = create_app(ids.packet_capture)
+    threading.Thread(
+        target=lambda: app.run(port=5000, use_reloader=False),
+        daemon=True
+    ).start()
 
     ids.start()

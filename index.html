@@ -27,19 +27,19 @@
         <section class="cards-grid">
             <div class="card">
                 <h3>Total Alerts</h3>
-                <p id="total-alerts" class="stat-number">3</p>
+                <p id="total-alerts" class="stat-number">0</p>
             </div>
             <div class="card warning">
                 <h3>High Confidence Threats</h3>
-                <p id="high-alerts" class="stat-number">2</p>
+                <p id="high-alerts" class="stat-number">0</p>
             </div>
             <div class="card info">
                 <h3>Signature Matches</h3>
-                <p id="sig-threats" class="stat-number">2</p>
+                <p id="sig-threats" class="stat-number">0</p>
             </div>
             <div class="card success">
                 <h3>Anomaly Detections</h3>
-                <p id="anomaly-threats" class="stat-number">1</p>
+                <p id="anomaly-threats" class="stat-number">0</p>
             </div>
         </section>
 
@@ -56,33 +56,34 @@
                 <table id="alerts-table">
                     <thead>
                         <tr>
-                          <td>2026-09-27 14:25:10</td>
-                            <td>SYN Flood Attack</td>
-                            <td>192.168.1.105</td>
-                            <td>51420</td>
-                            <td>10.0.0.1</td>
-                            <td>80</td>
-                            <td><span>0.98</span></td>
+                            <th>Time</th>
+                            <th>Threat</th>
+                            <th>Source IP</th>
+                            <th>Src Port</th>
+                            <th>Destination IP</th>
+                            <th>Dst Port</th>
+                            <th>Confidence</th>
                         </tr>
+                    </thead>
+                    <tbody id="alerts-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="table-container">
+            <h3>Live Packets</h3>
+            <div class="table-scroll-wrapper">
+                <table id="packets-table">
+                    <thead>
                         <tr>
-                            <td>2026-08-19 14:20:05</td>
-                            <td>Port Scanning</td>
-                            <td>10.0.0.45</td>
-                            <td>49152</td>
-                            <td>10.0.0.1</td>
-                            <td>443</td>
-                            <td><span>0.92</span></td>
+                            <th>Time</th>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Flags</th>
+                            <th>Size</th>
                         </tr>
-                        <tr>
-                            <td>2026-06-07 13:55:12</td>
-                            <td>Brute Force Attempt</td>
-                            <td>192.168.1.88</td>
-                            <td>60112</td>
-                            <td>10.0.0.5</td>
-                            <td>22</td>
-                            <td><span>0.95</span></td>
-                        </tr>
-                    </tbody>
+                    </thead>
+                    <tbody id="packets-body"></tbody>
                 </table>
             </div>
         </section>
