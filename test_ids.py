@@ -1,196 +1,63 @@
+import unittest
+
 from scapy.all import IP, TCP
 
-from main import IntrusionDetectionSystem
+from detection_engine import DetectionEngine
+from traffic_analyzer import TrafficAnalyzer
 
 
-def test_ids():
+class TrafficDetectionTests(unittest.TestCase):
 
-    test_packets = [
+    def setUp(self):
+        self.analyzer = TrafficAnalyzer()
+        self.detector = DetectionEngine()
 
-        # -------------------------
-        # Normal traffic
-        # -------------------------
-
-        IP(
-            src="192.168.1.1",
-            dst="192.168.1.2"
+    def make_packet(self, source_ip, source_port, destination_port, timestamp):
+        packet = (
+            IP(src=source_ip, dst='192.168.1.2')
+            / TCP(sport=source_port, dport=destination_port, flags='S')
         )
-        /
-        TCP(
-            sport=1234,
-            dport=80,
-            flags="A"
-        ),
+        packet.time = timestamp
+        return packet
 
-        IP(
-            src="192.168.1.3",
-            dst="192.168.1.4"
-        )
-        /
-        TCP(
-            sport=1235,
-            dport=443,
-            flags="P"
-        ),
+    def test_one_syn_packet_does_not_trigger_alert(self):
+        packet = self.make_packet('192.168.1.100', 4321, 22, 1.0)
 
-        # -------------------------
-        # SYN flood simulation
-        # -------------------------
+        features = self.analyzer.analyze_packet(packet)
+        threats = self.detector.detect_threats(features)
 
-        IP(
-            src="10.0.0.1",
-            dst="192.168.1.2"
-        )
-        /
-        TCP(
-            sport=5678,
-            dport=80,
-            flags="S"
-        ),
+        # One initial packet is not enough evidence for either signature.
+        self.assertEqual(features['packet_rate'], 0.0)
+        self.assertEqual(threats, [])
 
-        IP(
-            src="10.0.0.2",
-            dst="192.168.1.2"
-        )
-        /
-        TCP(
-            sport=5679,
-            dport=80,
-            flags="S"
-        ),
-
-        IP(
-            src="10.0.0.3",
-            dst="192.168.1.2"
-        )
-        /
-        TCP(
-            sport=5680,
-            dport=80,
-            flags="S"
-        ),
-
-        # -------------------------
-        # Port scan simulation
-        # -------------------------
-
-        IP(
-            src="192.168.1.100",
-            dst="192.168.1.2"
-        )
-        /
-        TCP(
-            sport=4321,
-            dport=22,
-            flags="S"
-        ),
-
-        IP(
-            src="192.168.1.100",
-            dst="192.168.1.2"
-        )
-        /
-        TCP(
-            sport=4321,
-            dport=23,
-            flags="S"
-        ),
-
-        IP(
-            src="192.168.1.100",
-            dst="192.168.1.2"
-        )
-        /
-        TCP(
-            sport=4321,
-            dport=25,
-            flags="S"
-        )
-    ]
-
-    # Interface isn't needed for mock testing
-    ids = IntrusionDetectionSystem(
-        interface=None
-    )
-
-    print(
-        "=============================="
-    )
-
-    print(
-        "Starting Campus IDS Test"
-    )
-
-    print(
-        "=============================="
-    )
-
-    for i, packet in enumerate(
-        test_packets,
-        1
-    ):
-
-        print(
-            f"\nProcessing packet {i}:"
-        )
-
-        print(
-            packet.summary()
-        )
-
-        # Analyze packet
-
-        features = (
-            ids.traffic_analyzer
-            .analyze_packet(packet)
-        )
-
-        if features:
-
-            # Detect threats
-
-            threats = (
-                ids.detection_engine
-                .detect_threats(features)
+    def test_scan_is_counted_across_destination_ports(self):
+        for port_offset in range(self.detector.PORT_SCAN_THRESHOLD):
+            packet = self.make_packet(
+                '192.168.1.100',
+                4321,
+                20 + port_offset,
+                2.0 + port_offset * 0.1
             )
+            features = self.analyzer.analyze_packet(packet)
 
-            if threats:
+        threats = self.detector.detect_threats(features)
 
-                print(
-                    "Detected threats:"
-                )
+        self.assertIn('port_scan', [threat['rule'] for threat in threats])
 
-                for threat in threats:
-
-                    print(
-                        threat
-                    )
-
-            else:
-
-                print(
-                    "No threats detected."
-                )
-
-        else:
-
-            print(
-                "Packet ignored."
+    def test_syn_burst_is_counted_across_connections(self):
+        for packet_number in range(self.detector.SYN_FLOOD_THRESHOLD):
+            packet = self.make_packet(
+                '192.168.1.100',
+                40000 + packet_number,
+                80,
+                3.0 + packet_number * 0.005
             )
+            features = self.analyzer.analyze_packet(packet)
 
-    print(
-        "\n=============================="
-    )
+        threats = self.detector.detect_threats(features)
 
-    print(
-        "IDS Test Completed"
-    )
-
-    print(
-        "=============================="
-    )
+        self.assertIn('syn_flood', [threat['rule'] for threat in threats])
 
 
-if __name__ == "__main__":
-
-    test_ids()
+if __name__ == '__main__':
+    unittest.main()
