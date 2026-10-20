@@ -9,6 +9,7 @@ class TrafficAnalyzer:
     SYN_RATE_WINDOW_SECONDS = 1
 
     def __init__(self):
+        """Initialize the network-flow trackers used to compute packet and port statistics."""
 
         self.flow_stats = defaultdict(lambda: {
             'packet_count': 0,
@@ -21,6 +22,7 @@ class TrafficAnalyzer:
         self.host_activity = defaultdict(deque)
 
     def analyze_packet(self, packet):
+        """Convert a packet into the features used by the detection engine."""
 
         if IP in packet and TCP in packet:
 
@@ -71,6 +73,7 @@ class TrafficAnalyzer:
         return None
 
     def extract_features(self, packet, stats, activity, current_time):
+        """Build a dictionary of traffic metrics for the detection engine to inspect."""
 
         duration = (
             stats['last_time'] -

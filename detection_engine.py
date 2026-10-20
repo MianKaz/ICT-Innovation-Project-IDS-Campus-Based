@@ -1,10 +1,18 @@
 class DetectionEngine:
 
-    # These are simple starting thresholds; tune them against campus traffic.
-    SYN_FLOOD_THRESHOLD = 100
-    PORT_SCAN_THRESHOLD = 10
+    # Lowered for a demo-friendly IDS; these can be tuned back higher later.
+    SYN_FLOOD_THRESHOLD = 10
+    PORT_SCAN_THRESHOLD = 3
+
+    def generate_demo_threats(self):
+        """Create a synthetic attack pattern that reliably triggers alerts."""
+        return self.detect_threats({
+            'syn_count_1s': max(self.SYN_FLOOD_THRESHOLD + 5, 15),
+            'unique_syn_destination_ports': max(self.PORT_SCAN_THRESHOLD + 2, 5),
+        })
 
     def detect_threats(self, features):
+        """Analyze packet metrics and return a list of triggered IDS threats."""
 
         threats = []
 

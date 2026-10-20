@@ -1,4 +1,5 @@
 import queue
+import sys
 import threading
 
 from scapy.all import IP, TCP
@@ -13,6 +14,7 @@ from alert_system import AlertSystem
 class IntrusionDetectionSystem:
 
     def __init__(self, interface):
+        """Create all IDS components and store the network interface to monitor."""
 
         # Each component handles one stage of the IDS packet-processing flow.
         self.packet_capture = (
@@ -34,6 +36,7 @@ class IntrusionDetectionSystem:
         self.interface = interface
 
     def start(self):
+        """Continuously read packets from the queue, detect threats, and raise alerts."""
 
         print(
             f"Starting IDS on interface: "
@@ -123,6 +126,7 @@ class IntrusionDetectionSystem:
 
 
 if __name__ == "__main__":
+    """Entry point for the IDS. Run this file with python main.py or python main.py --demo."""
 
     interface = (
         "Wi-Fi"
@@ -132,7 +136,19 @@ if __name__ == "__main__":
         interface
     )
 
-    
+    demo_mode = "--demo" in sys.argv or "demo" in sys.argv
+    if demo_mode:
+        print("Demo mode enabled: generating synthetic IDS alert...")
+        demo_threats = ids.detection_engine.generate_demo_threats()
+        for threat in demo_threats:
+            packet_info = {
+                'source_ip': '10.0.0.10',
+                'destination_ip': '10.0.0.20',
+                'source_port': 12345,
+                'destination_port': 80,
+            }
+            ids.alert_system.generate_alert(threat, packet_info)
+
     app = create_app(ids.packet_capture)
     threading.Thread(
         target=lambda: app.run(port=5000, use_reloader=False),

@@ -13,11 +13,7 @@ WARNING_MARKER = " - WARNING - "
 
 
 def parse_alert_line(line):
-    """Turn one ids_alerts.log line into a clean dict, or None.
-
-    AlertSystem writes the alert JSON on the WARNING line. The CRITICAL line
-    for high-confidence threats is a duplicate, so it is skipped.
-    """
+    """Convert one IDS alert log line into a JSON-friendly dict for the frontend."""
     if WARNING_MARKER not in line:
         return None
 
@@ -48,6 +44,7 @@ def parse_alert_line(line):
 
 
 def read_alerts(log_file):
+    """Read the IDS log file and return parsed alert records for the dashboard."""
     try:
         with open(log_file, encoding="utf-8", errors="replace") as f:
             return [a for a in map(parse_alert_line, f) if a]
@@ -56,11 +53,13 @@ def read_alerts(log_file):
 
 
 def create_app(packet_capture, log_file="ids_alerts.log"):
+    """Build the Flask API that exposes alerts and recent captured packets."""
     app = Flask(__name__)
-    CORS(app)  
+    CORS(app)
 
     @app.route("/api/alerts")
     def alerts():
+        """Send the latest IDS alerts plus summary statistics to the web frontend."""
         limit = request.args.get("limit", 100, type=int)
         all_alerts = read_alerts(log_file)
 
@@ -77,6 +76,7 @@ def create_app(packet_capture, log_file="ids_alerts.log"):
 
     @app.route("/api/packets")
     def packets():
+        """Send the most recent captured packets as JSON to the dashboard."""
         limit = request.args.get("limit", 50, type=int)
         return jsonify(packet_capture.get_recent(limit)[::-1])
 

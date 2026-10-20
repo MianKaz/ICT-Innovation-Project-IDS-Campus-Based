@@ -9,6 +9,7 @@ class AlertSystem:
         self,
         log_file="ids_alerts.log"
     ):
+        """Create the IDS alert logger that writes warnings and critical events to disk."""
 
         self.logger = logging.getLogger(
             "IDS_Alerts"
@@ -41,6 +42,7 @@ class AlertSystem:
         threat,
         packet_info
     ):
+        """Build and log an alert containing the detected threat and packet metadata."""
 
         alert = {
 
