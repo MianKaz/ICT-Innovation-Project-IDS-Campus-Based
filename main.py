@@ -1,5 +1,5 @@
 import queue
-import sys
+import argparse
 import threading
 
 from scapy.all import IP, TCP
@@ -13,7 +13,7 @@ from alert_system import AlertSystem
 
 class IntrusionDetectionSystem:
 
-    def __init__(self, interface):
+    def __init__(self, interface=None):
         """Create all IDS components and store the network interface to monitor."""
 
         # Each component handles one stage of the IDS packet-processing flow.
@@ -125,19 +125,26 @@ class IntrusionDetectionSystem:
             self.packet_capture.stop()
 
 
-if __name__ == "__main__":
-    """Entry point for the IDS. Run this file with python main.py or python main.py --demo."""
-
-    interface = (
-        "Wi-Fi"
+def main(argv=None):
+    """Run the IDS backend in demo mode or capture on a selected interface."""
+    parser = argparse.ArgumentParser(description="Campus IDS web dashboard backend")
+    parser.add_argument(
+        "--interface",
+        help="Network interface name to monitor (required outside demo mode)",
     )
-
-    ids = IntrusionDetectionSystem(
-        interface
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Generate sample alerts and start the API without capturing traffic",
     )
+    args = parser.parse_args(argv)
 
-    demo_mode = "--demo" in sys.argv or "demo" in sys.argv
-    if demo_mode:
+    if not args.demo and not args.interface:
+        parser.error("--interface is required unless --demo is selected")
+
+    ids = IntrusionDetectionSystem(args.interface)
+    if args.demo:
+        # Demo mode deliberately avoids privileged packet capture and adapter setup.
         print("Demo mode enabled: generating synthetic IDS alert...")
         demo_threats = ids.detection_engine.generate_demo_threats()
         for threat in demo_threats:
@@ -150,9 +157,18 @@ if __name__ == "__main__":
             ids.alert_system.generate_alert(threat, packet_info)
 
     app = create_app(ids.packet_capture)
+    if args.demo:
+        print("Dashboard API running at http://localhost:5000")
+        app.run(port=5000, use_reloader=False)
+        return
+
     threading.Thread(
         target=lambda: app.run(port=5000, use_reloader=False),
         daemon=True
     ).start()
 
     ids.start()
+
+
+if __name__ == "__main__":
+    main()
