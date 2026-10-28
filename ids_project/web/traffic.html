@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus IDS - Live Traffic</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Campus IDS</h2>
+        <ul>
+            <li id="nav-dashboard"><a href="index.html">Live Dashboard</a></li>
+            <li id="nav-traffic" class="active"><a href="traffic.html">Live Traffic</a></li>
+            <li id="nav-history"><a href="history.html">History</a></li>
+            <li id="nav-notification"><a href="notification.html">Notification</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <h1>Live Network Traffic</h1>
+            <div class="system-status">
+                Status: <span id="status-indicator" class="status online">Active</span>
+            </div>
+        </header>
+
+        <section class="actions-container">
+            <h3>Filters</h3>
+            <div class="filter-bar">
+                <input id="f-ip" placeholder="IP address">
+                <select id="f-proto">
+                    <option value="">All protocols</option>
+                    <option>TCP</option><option>UDP</option><option>ICMP</option>
+                    <option>DNS</option><option>ARP</option>
+                </select>
+                <input id="f-port" placeholder="Port">
+                <button id="apply-btn" class="btn">Apply</button>
+                <button id="pause-btn" class="btn secondary">Pause</button>
+            </div>
+        </section>
+
+        <section class="table-container">
+            <h3>Packets</h3>
+            <div class="table-scroll-wrapper">
+                <table id="traffic-table">
+                    <thead>
+                        <tr>
+                            <th>No.</th><th>Time</th><th>Source</th><th>Destination</th>
+                            <th>Proto</th><th>Length</th><th>Info</th>
+                        </tr>
+                    </thead>
+                    <tbody id="traffic-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="table-container">
+            <h3>Packet Details (click a row)</h3>
+            <pre id="packet-detail" class="packet-detail">No packet selected.</pre>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

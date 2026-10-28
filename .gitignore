@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+
+# virtual environment (each person creates their own)
+ids/
+.venv/
+venv/
+
+# BIG or generated files: do not push these (GitHub rejects files over 100 MB)
+data/
+models/
+db/
+logs/
+
+# editor settings
+.vscode/
+models_30pct/

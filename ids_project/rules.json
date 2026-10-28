@@ -1,0 +1,7 @@
+[
+  {"name": "Port Scan", "protocol": "TCP", "condition": "distinct_dst_ports", "threshold": 15, "window_sec": 5, "severity": "high"},
+  {"name": "SYN Flood", "protocol": "TCP", "condition": "syn_count", "threshold": 200, "window_sec": 5, "severity": "critical"},
+  {"name": "ICMP Flood", "protocol": "ICMP", "condition": "packet_count", "threshold": 100, "window_sec": 5, "severity": "high"},
+  {"name": "ARP Spoofing", "protocol": "ARP", "condition": "ip_mac_change", "threshold": 1, "window_sec": 0, "severity": "critical"},
+  {"name": "Known Bad Port", "protocol": ["TCP", "UDP"], "condition": "bad_port", "ports": [4444, 31337], "threshold": 1, "window_sec": 0, "severity": "medium"}
+]

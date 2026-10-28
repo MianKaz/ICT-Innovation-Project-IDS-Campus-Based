@@ -1,0 +1,223 @@
+CAMPUS IDS - HOW TO SET UP AND RUN
+==================================
+For a new teammate on a new Windows laptop. Follow the steps in order.
+Time needed: about 30 to 45 minutes (most of it is downloading and training).
+
+To understand WHAT the project is and how it works, read PROJECT_OVERVIEW.txt.
+
+
+WHAT YOU NEED
+-------------
+- A Windows 10 or 11 laptop
+- Python 3.12 or newer (we built the project on Python 3.14)
+- Git
+- Visual Studio Code (recommended)
+- Wireshark (only for live capture; its installer also installs Npcap and tshark)
+- The CICIDS2017 dataset (only needed for training, about 1 GB)
+
+
+STEP 1: INSTALL THE TOOLS
+-------------------------
+1. Python: download from python.org. On the first installer screen, tick
+   "Add python.exe to PATH". Check it worked:   python --version
+2. Git: download from git-scm.com and install with the default options.
+3. Visual Studio Code: download from code.visualstudio.com.
+4. Wireshark: download from wireshark.org. Keep the "Npcap" option ticked in the
+   installer. Afterwards this file should exist:
+       C:\Program Files\Wireshark\tshark.exe
+   If Wireshark went somewhere else, change TSHARK_PATH in src\live_config.py.
+   (Skip Wireshark if you only want the demo and the test file.)
+
+
+STEP 2: GET THE CODE
+--------------------
+Open PowerShell and run (use the real repository link):
+
+    git clone <paste the GitHub repository link here>
+    cd <the project folder name>
+
+Open the folder in VS Code (File > Open Folder). Use the VS Code terminal for
+the next steps. It opens in the project folder.
+
+
+STEP 3: CREATE A VIRTUAL ENVIRONMENT AND INSTALL PACKAGES
+---------------------------------------------------------
+    python -m venv ids
+    ids\Scripts\activate
+    pip install -r requirements.txt
+
+- Name the environment "ids" exactly. The start_ids.bat and start_demo.bat files
+  look for it by that name.
+- If PowerShell says "running scripts is disabled", run this once, then retry:
+      Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+- If pip fails because a package does not support your Python version yet,
+  install Python 3.12 and repeat Step 3.
+- You must run "ids\Scripts\activate" again every time you open a new terminal
+  (you will see (ids) at the start of the line when it is active).
+
+
+STEP 4: GET THE AI MODELS
+-------------------------
+The trained models are NOT on GitHub (they are too big). Pick one option.
+
+OPTION A - copy them (fastest):
+  Ask a teammate for their "models" folder and put it in the project folder.
+  This is enough for live capture and the test file.
+  Note: the dataset demo (python main.py with no options) also needs
+  data\processed, which only Option B creates. Without it, the demo shows
+  made-up traffic instead.
+
+OPTION B - train them yourself:
+  1. Download the dataset from https://www.unb.ca/cic/datasets/ids-2017.html
+     Get the CSV version called "MachineLearningCVE" and unzip it.
+  2. Create a folder named "data" in the project folder and put the 8 CSV files
+     in it (Monday ... Friday). Do not put pcap files there.
+  3. Optional: open src\config.py. BENIGN_FRAC = 1.0 uses all the data
+     (a few minutes, needs several GB of free RAM). BENIGN_FRAC = 0.3 is much
+     faster and almost as accurate. Leave TEST_SIZE = 0.3.
+  4. Run:   python train.py
+     This creates the "models" folder and the "data\processed" folder.
+  5. Optional, to see the test results:   python evaluate.py
+     Results (tables and charts) go in the "results" folder.
+
+
+STEP 5: FIRST RUN (SAFE TEST, NO ADMIN, NO NETWORK NEEDED)
+----------------------------------------------------------
+    python main.py --pcap test_traffic.pcap
+
+A browser opens at http://localhost:5000 and the program analyses a recorded
+test file. You should see these alerts on the dashboard:
+    ARP Spoofing, ICMP Flood, SYN Flood, Port Scan, Known Bad Port
+You may also see a few extra "AI" alerts on the normal traffic in the file.
+Press Ctrl+C in the terminal to stop.
+
+
+STEP 6: LIVE CAPTURE (REAL NETWORK)
+-----------------------------------
+Live capture needs administrator rights.
+
+1. Open PowerShell or the VS Code terminal AS ADMINISTRATOR, go to the project
+   folder and activate the environment (ids\Scripts\activate).
+2. Find your network adapter:
+       python main.py --list-ifaces
+   Look for the one with your real connection, for example "Wi-Fi".
+3. Start monitoring:
+       python main.py --live --iface "Wi-Fi"
+   Use your own adapter name. Keep the quotes.
+4. Open http://localhost:5000 (it opens by itself). Every 15 seconds the terminal
+   prints a status line: packets, flows, alerts, merged, dropped.
+5. Stop with Ctrl+C.
+
+Notes:
+- Live mode uses PyShark if Wireshark is installed, otherwise Scapy. Force one
+  with --backend pyshark or --backend scapy. With Scapy, --iface takes the
+  Index number shown by --list-ifaces (for example --iface 22).
+- On Wi-Fi you only see your own laptop's traffic. To watch a whole network you
+  need a mirror (SPAN) port on a switch.
+- Only monitor networks you own or have permission to monitor. Never scan other
+  people's devices. A university network may have rules about scanning.
+
+SAFE ATTACK TEST ON YOUR OWN LAPTOP:
+1. Find the loopback adapter in the --list-ifaces list (PyShark shows "Adapter
+   for loopback traffic capture", Scapy shows "Software Loopback Interface").
+2. Start monitoring on it:   python main.py --live --iface <that name or number>
+3. In a second terminal (activate the environment first):
+       python tools\scan_localhost.py
+   This only tries ports on your own laptop (127.0.0.1). It cannot scan any
+   other machine.
+4. A "Port Scan" alert should appear on the dashboard within a few seconds.
+   Repeated alerts about the same source are merged for 30 seconds, so wait
+   30 seconds before repeating the test.
+
+
+ALL WAYS TO START THE PROGRAM
+-----------------------------
+python main.py                          Demo (replays dataset flows if models and
+                                        data\processed exist, otherwise made-up traffic)
+python main.py --fake                   Demo with made-up traffic only
+python main.py --pcap FILE.pcap         Analyse a recorded capture file
+python main.py --live --iface NAME      Watch real traffic (administrator needed)
+python main.py --list-ifaces            Show network adapters, then exit
+python main.py --no-browser             Do not open the browser automatically
+start_ids.bat                           Double-click: live capture
+start_demo.bat                          Double-click: demo
+python tools\make_test_pcap.py          Recreate test_traffic.pcap
+python rule_check.py                    Helper for tuning the flow rules (needs training data)
+
+Close the program with Ctrl+C. The dashboard is only reachable from the same
+laptop (127.0.0.1).
+
+
+THE DASHBOARD
+-------------
+Open http://localhost:5000
+- Live Dashboard: alert counters, a chart of alerts by threat type, the latest
+  alerts and the latest traffic.
+- Live Traffic: a Wireshark-style packet table. You can filter by IP, protocol
+  and port, pause it, and click a row to see its details.
+- History: every alert, with export to JSON or CSV, and a button to clear all
+  alerts and history (a backup of the JSON log is kept).
+- Notification: the high-risk alerts.
+The alert log is also saved to logs\alerts.jsonl (one JSON object per line).
+
+
+SETTINGS YOU MAY WANT TO CHANGE
+-------------------------------
+rules.json              The packet rules: port scan, SYN flood, ICMP flood, ARP
+                        spoofing, known bad ports. Edit thresholds, time windows,
+                        severity, or add rules. No code changes needed.
+src\live_config.py      Live capture settings: tshark path, default interface,
+                        alert merge time (ALERT_COOLDOWN_S), whitelist of IP
+                        ranges to ignore (WHITELIST_SUBNETS), and more.
+src\config.py           Training settings (BENIGN_FRAC, TEST_SIZE, model sizes,
+                        RF_MIN_PROB, ISO_TARGET_FPR).
+src\signature.py        Thresholds for the flow rules (the SIG block at the top).
+After changing anything in src\config.py that affects training, run train.py again.
+
+
+TROUBLESHOOTING
+---------------
+"ModuleNotFoundError" or "No module named ..."
+    The environment is not active or packages are missing. Run
+    ids\Scripts\activate, then pip install -r requirements.txt.
+
+"ImportError: cannot import name ... from src" or "No such file"
+    A file is missing from the src folder. Compare your folder with the
+    structure in PROJECT_OVERVIEW.txt, or run git pull.
+
+"Could not start capture"
+    Open the terminal as Administrator. For PyShark check Wireshark is installed
+    and TSHARK_PATH is right. For Scapy check Npcap is installed. Check the
+    interface name with --list-ifaces.
+
+"No trained models found, so only the rules are active"
+    The models folder is missing. Do Step 4.
+
+"No CSV files found" when training
+    Put the 8 dataset CSV files in a folder named "data" in the project folder.
+
+Browser shows "Backend offline" or an empty dashboard
+    The program is not running. Start it with one of the commands above and
+    keep the terminal open. Port 5000 must be free (close other programs that
+    use it).
+
+The dashboard shows no alerts after a scan test
+    Alerts about the same threat and source are merged for 30 seconds. Wait,
+    then repeat. Also check you picked the right interface.
+
+Many false alarms from the AI on normal browsing
+    Expected at first: real traffic differs from the 2017 lab data. Tell the
+    team lead and note which alerts appeared (see Limits in PROJECT_OVERVIEW.txt).
+
+
+USING GIT
+---------
+The file .gitignore stops these folders from being pushed:
+    data\    (the dataset, about 1 GB)
+    models\  (trained models, too big for GitHub)
+    db\      (the local alert database)
+    logs\    (local alert logs)
+    ids\     (your virtual environment)
+GitHub rejects files over 100 MB, so never force-add them. Share the models
+folder with teammates through Google Drive or OneDrive instead.
+Before you push:   git status   (check no big files are listed)

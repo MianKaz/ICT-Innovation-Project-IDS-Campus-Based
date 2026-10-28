@@ -1,0 +1,252 @@
+CAMPUS IDS - PROJECT OVERVIEW
+=============================
+A hybrid intrusion detection system (IDS) that mixes fixed security rules with
+machine learning, and shows what it finds on a web dashboard.
+Team members: [add names here]
+To install and run it, read HOW_TO_RUN.txt.
+
+
+1. WHAT THIS PROJECT IS
+-----------------------
+An IDS watches network traffic and raises an alert when something looks like an
+attack, for example someone scanning for open ports or flooding a server.
+
+Most simple IDS tools use fixed rules (signatures). Rules are fast and rarely
+wrong, but they only catch attacks someone already wrote a rule for. Machine
+learning can learn patterns from data and can sometimes spot attacks that look
+unusual, but it can raise false alarms. Our system uses both, which is why we
+call it "hybrid".
+
+Our Innovation Concept described two designs:
+- Primary design: a rule-based IDS (Scapy capture, JSON rules, sliding windows).
+- Secondary design: an AI-enhanced IDS (flow statistics, Random Forest for known
+  attacks, Isolation Forest for unusual traffic).
+The software combines both: the rules and the AI layer run on the same traffic
+at the same time, and the rules keep working even if the AI part is missing.
+
+
+2. HOW IT WORKS (THE PIPELINE)
+------------------------------
+   Network or .pcap file
+          |
+   [1] CAPTURE        reads packets (PyShark/Wireshark or Scapy/Npcap)
+          |
+          +--> Live Traffic table on the dashboard (every packet)
+          |
+          +--> [2] PACKET RULES (rules.json)
+          |         sliding-window counters: port scan, SYN flood,
+          |         ICMP flood, ARP spoofing, known bad ports
+          |
+          +--> [3] FLOW BUILDER
+                    groups packets into "flows" (one conversation) and
+                    calculates 77 statistics per flow
+                        |
+                    [4] FLOW RULES   a few rules on flow statistics
+                    [5] RANDOM FOREST   "is this a known attack, and which?"
+                    [6] ISOLATION FOREST   "is this flow unusual?"
+                        |
+                    [7] DECISION LAYER   combines 4, 5 and 6 into one answer
+          |
+   [8] ALERTS   whitelist, merge repeats, save to the database and to
+          |      logs\alerts.jsonl
+   [9] DASHBOARD (Flask server + HTML/CSS/JavaScript pages)
+
+Decision priority in [7]:
+  1. A flow rule matched                 -> alert
+  2. Random Forest says "attack" (sure)  -> alert, named after the attack type
+  3. Only Isolation Forest is suspicious -> "Suspicious Flow" alert with LOWER
+                                            confidence (never above 0.80)
+Packet rules in [2] raise their alerts independently of the flow analysis.
+
+
+3. THE PARTS IN PLAIN ENGLISH
+-----------------------------
+Packet capture
+  Reads every packet on a network adapter (or from a recorded .pcap file).
+  Capture and analysis run in separate threads, so a slow analysis does not make
+  us lose packets.
+
+Packet rules (rules.json)
+  Each rule has a protocol, condition, threshold, time window and severity.
+  Example: "one source touches 15 different TCP ports on one target within 5
+  seconds" means port scan. Rules can be edited without touching the code.
+
+Flows and the 77 statistics
+  A flow is all the packets of one conversation (same addresses, ports and
+  protocol). For each flow we calculate things like duration, packet counts,
+  bytes, timing between packets and TCP flag counts. These are the same 77
+  statistics used in the CICIDS2017 dataset, so the models trained on that
+  dataset can score our live flows. We copied CICFlowMeter's behaviour as
+  closely as we could (for example, a FIN packet closes a flow).
+
+Flow rules (src\signature.py)
+  A few precise rules written after studying the dataset: port 444 traffic, port
+  scan flow shape, FTP and SSH brute force, slow HTTP attacks. They fire on very
+  little normal traffic (about 0.4 percent).
+
+Random Forest
+  A supervised model: it learns from labelled examples of normal traffic and 14
+  attack types, and names the attack. Very accurate on attacks it was trained on.
+
+Isolation Forest
+  An unsupervised model: it only learns what NORMAL traffic looks like and flags
+  flows that look different. It never sees attack labels, so in theory it can
+  notice new attacks.
+
+Dashboard
+  A Flask server (api.py) reads the database and serves four pages:
+  Live Dashboard, Live Traffic, History, Notification. The pages ask the server
+  for fresh data every few seconds.
+
+
+4. DATA AND TRAINING
+--------------------
+Dataset: CICIDS2017 (Canadian Institute for Cybersecurity), five days of lab
+network traffic with labelled attacks.
+- 2,830,743 flows in the raw CSV files, 2,497,980 after cleaning (infinite
+  values, missing values and duplicate rows removed).
+- 77 features per flow, 15 labels: BENIGN plus DoS Hulk, DDoS, PortScan, DoS
+  GoldenEye, FTP-Patator, DoS slowloris, DoS Slowhttptest, SSH-Patator, Bot, three
+  web attacks, Infiltration and Heartbleed.
+- Split 70 percent training and 30 percent testing (random, keeping the same
+  mix of labels in both).
+- Random Forest: 100 trees, class weights to cope with the imbalance.
+- Isolation Forest: trained on normal traffic only; its alarm threshold is set
+  so that about 0.2 percent of normal flows are flagged.
+Training takes about 5 minutes for the full dataset (train.py).
+
+
+5. RESULTS (OFFLINE TEST ON HELD-OUT DATASET FLOWS)
+---------------------------------------------------
+Test set: 749,394 flows, of which 127,718 are attacks. Full-data models.
+
+                          Attacks caught    False alarms on normal traffic
+  Rules only                    24.1%               0.36%
+  Random Forest only            99.9%               0.54%
+  Isolation Forest only         23.6%               0.21%
+  Hybrid (all together)         99.9%               1.05%
+
+Isolation Forest ROC-AUC: 0.84. Speed: about 59,000 flows per second.
+
+What this means:
+- The Random Forest is excellent on attacks it has seen.
+- Rules alone catch few attacks, but almost never raise false alarms.
+- The hybrid catches as much as the Random Forest and costs about 0.5 percent more
+  false alarms. What the extra layers buy is coverage of attacks the Random
+  Forest has NOT seen. We tested that by retraining it with one attack hidden:
+
+  Hidden attack            Random Forest   Rules   Isolation    Hybrid
+                           alone                   Forest       together
+  PortScan                     0.2%        98.5%     0.0%        98.7%
+  Web Attack Brute Force      86.6%         0.0%     0.0%        86.6%
+  DoS Hulk                     1.0%         0.5%    48.0%        49.4%
+  FTP-Patator                  0.0%        64.8%     0.0%        64.8%
+  Bot                          0.0%         0.0%     1.2%         1.2%
+
+  Each unseen attack is covered by a different layer: rules for port scans,
+  the Isolation Forest for DoS Hulk, the Random Forest for web attacks that
+  resemble ones it learned. No single layer covers everything, which is the
+  argument for the hybrid design. Bot traffic looks like normal traffic in these
+  statistics, so nothing catches it when it is unseen.
+- In the same tests the Isolation Forest added no extra correct alerts for
+  attacks the Random Forest already knew. Its value is only for unseen attacks.
+
+
+6. LIMITS AND HONEST CAVEATS
+----------------------------
+- The results above are on 2017 lab data. Live accuracy on a real network is
+  unproven. Our flow statistics match the dataset closely but not exactly, and
+  real traffic differs from the lab traffic. Expect some false AI alerts on live
+  traffic until the system is calibrated on your own network.
+- The dataset split is random and uses one dataset. Results would likely be
+  lower on a different network.
+- The flow rules were written after looking at the dataset, so their numbers are
+  somewhat optimistic.
+- Classes with very few examples (Heartbleed 3, SQL Injection 6, Infiltration
+  11 in the test set) cannot be judged.
+- Bot attacks are not detectable with these features when unseen.
+- About 1 percent false alarms is a lot of alerts on a busy network. Merging
+  repeats (30 seconds) and the IP whitelist help.
+- On Wi-Fi the system only sees the laptop's own traffic. A whole network needs
+  a mirror (SPAN) port.
+- The dashboard is a development server for one local user. It has no login and
+  must not be exposed to the internet.
+- Only monitor networks you own or may monitor. Never scan other people's devices.
+
+
+7. DIFFERENCES FROM THE INNOVATION CONCEPT DOCUMENT
+---------------------------------------------------
+- Capture: both PyShark (default for live capture) and Scapy are supported,
+  instead of Scapy for one design and PyShark for the other.
+- Capture and analysis run in separate threads, not separate processes.
+- Alerts are stored in a SQLite database for the dashboard and also written to
+  logs\alerts.jsonl in the JSON format from the concept.
+- Class imbalance is handled with class weights, not SMOTE.
+- No separate Decision Tree baseline.
+- Retraining from alert logs and the dashboard severity filter are not built.
+
+
+8. IDEAS FOR THE FUTURE
+-----------------------
+- A calibration step that learns what normal traffic on the local network looks
+  like, to cut false alarms.
+- Severity filter on the dashboard, and grouping alerts by source.
+- Retrain the models using confirmed alerts from the logs.
+- Handle IPv6 flows, and test on a mirror port of a real switch.
+- Test on a second dataset such as CIC-IDS2018.
+
+
+9. FOLDER GUIDE
+---------------
+main.py               Starts everything (demo, live capture, or test file)
+api.py                Web server: serves the dashboard and its data
+train.py              Trains the two AI models (run once)
+evaluate.py           Tests the models and writes the results folder
+rule_check.py         Helper for tuning the flow rules
+rules.json            Packet rules (port scan, flood, ARP spoofing, bad ports)
+requirements.txt      Python packages to install
+start_ids.bat         Double-click: live capture
+start_demo.bat        Double-click: demo
+test_traffic.pcap     Recorded test traffic with planted attacks
+HOW_TO_RUN.txt        Setup and run guide
+PROJECT_OVERVIEW.txt  This file
+
+src\config.py         Training and model settings
+src\live_config.py    Live capture settings
+src\preprocess.py     Cleans the dataset and makes train/test files
+src\signature.py      Flow rules
+src\packet_rules.py   Engine for rules.json (sliding windows)
+src\ml_engine.py      Runs the Random Forest and Isolation Forest
+src\decision.py       Combines rules and AI into one alert
+src\capture.py        Packet capture with Scapy
+src\capture_pyshark.py  Packet capture with PyShark
+src\flow_builder.py   Groups packets into flows and calculates the 77 statistics
+src\live.py           The live detector that ties everything together
+src\alerting.py       Whitelist, merging of repeats, saving alerts
+src\storage.py        Writes to the database and to logs\alerts.jsonl
+src\flow_replay.py    Demo: replays dataset flows through the detector
+src\replay.py         Demo: made-up traffic
+
+web\                  Dashboard pages: index.html, traffic.html, history.html,
+                      notification.html, style.css, script.js
+tools\make_test_pcap.py   Recreates test_traffic.pcap
+tools\scan_localhost.py   Safe test: port scan against your own laptop only
+
+Created automatically (not on GitHub):
+data\processed\       Train and test files (made by train.py)
+models\               Trained models (made by train.py)
+results\              Tables and charts (made by evaluate.py)
+db\ids.db             Alerts and packets
+logs\alerts.jsonl     JSON alert log
+
+
+10. WORDS USED IN THIS PROJECT
+------------------------------
+Flow            All packets of one conversation between two computers.
+Signature/rule  A fixed pattern that identifies a known attack.
+False alarm     An alert about traffic that is actually normal.
+Recall          The share of real attacks that were caught.
+Precision       The share of alerts that were real attacks.
+Unseen attack   An attack type the model was not trained on.
+pcap            A file with recorded network packets.
+Interface       A network adapter, for example Wi-Fi.

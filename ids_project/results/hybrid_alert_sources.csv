@@ -1,0 +1,4 @@
+,true_alerts,false_alarms,precision
+signature,30822,2214,0.9329822012350163
+random_forest,96795,3046,0.9694914914714395
+isolation_forest,0,1267,0.0
