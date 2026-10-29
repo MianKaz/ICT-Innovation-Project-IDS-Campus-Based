@@ -46,6 +46,26 @@ def alerts():
         total=s['t'] or 0, high=s['h'] or 0, signature=s['s'] or 0,
         anomaly=s['a'] or 0, by_type=by_type))
 
+@app.route('/api/alerts/<int:alert_id>')
+def alert_detail(alert_id):
+    with db() as con:
+        alert = con.execute(
+            'SELECT * FROM alerts WHERE id = ?', (alert_id,)).fetchone()
+        if alert is None:
+            return jsonify(error='not found'), 404
+
+        related_packets = [dict(r) for r in con.execute(
+            'SELECT * FROM packets WHERE (src = ? AND dst = ?) OR (src = ? AND dst = ?) '
+            'ORDER BY id DESC LIMIT 25',
+            (alert['source_ip'], alert['destination_ip'],
+             alert['destination_ip'], alert['source_ip']))]
+        similar_alerts = con.execute(
+            'SELECT COUNT(*) FROM alerts WHERE threat_type = ? AND source_ip = ?',
+            (alert['threat_type'], alert['source_ip'])).fetchone()[0]
+
+    return jsonify(alert=dict(alert), related_packets=related_packets,
+                   similar_alerts=similar_alerts)
+
 @app.route('/api/packets')
 def packets():
     limit = request.args.get('limit', 50, type=int)
