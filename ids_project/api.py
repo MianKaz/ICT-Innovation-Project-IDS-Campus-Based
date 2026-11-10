@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory
 
 BASE = os.path.dirname(os.path.abspath(__file__))
@@ -33,18 +34,69 @@ def home():
 @app.route('/api/alerts')
 def alerts():
     limit = request.args.get('limit', 100, type=int)
+    where = []
+    params = []
+    range_since = None
+    range_until = None
+
+    if 'minutes' in request.args:
+        raw_minutes = request.args.get('minutes', '')
+        try:
+            minutes = int(raw_minutes)
+        except ValueError:
+            return jsonify(error='minutes must be a positive integer no greater than 525600'), 400
+        if minutes <= 0 or minutes > 525600:
+            return jsonify(error='minutes must be a positive integer no greater than 525600'), 400
+
+        now = datetime.now()
+        range_since = (now - timedelta(minutes=minutes)).isoformat(timespec='seconds')
+        range_until = now.isoformat(timespec='seconds')
+        where.append('timestamp >= ?')
+        params.extend([range_since, range_until])
+        where.append('timestamp <= ?')
+    else:
+        since = None
+        until = None
+        try:
+            if 'since' in request.args:
+                since = datetime.fromisoformat(request.args['since'])
+                if since.tzinfo is not None:
+                    since = since.astimezone().replace(tzinfo=None)
+                range_since = since.isoformat(timespec='seconds')
+                where.append('timestamp >= ?')
+                params.append(range_since)
+
+            if 'until' in request.args:
+                until = datetime.fromisoformat(request.args['until'])
+                if until.tzinfo is not None:
+                    until = until.astimezone().replace(tzinfo=None)
+                range_until = until.isoformat(timespec='seconds')
+                where.append('timestamp <= ?')
+                params.append(range_until)
+        except ValueError:
+            return jsonify(error='since and until must be valid ISO date/time values'), 400
+
+        if since and until and since > until:
+            return jsonify(error='since must not be later than until'), 400
+
+    where_sql = ' WHERE ' + ' AND '.join(where) if where else ''
     with db() as con:
         rows = [dict(r) for r in con.execute(
-            'SELECT * FROM alerts ORDER BY id DESC LIMIT ?', (limit,))]
+            'SELECT * FROM alerts' + where_sql + ' ORDER BY id DESC LIMIT ?',
+            params + [limit])]
         s = con.execute(
             "SELECT COUNT(*) t, SUM(confidence >= 0.85) h, "
             "SUM(detector IN ('signature', 'random_forest')) s, "
-            "SUM(detector = 'isolation_forest') a FROM alerts").fetchone()
+            "SUM(detector = 'isolation_forest') a FROM alerts" + where_sql,
+            params).fetchone()
         by_type = {r['threat_type']: r['n'] for r in con.execute(
-            'SELECT threat_type, COUNT(*) n FROM alerts GROUP BY threat_type')}
-    return jsonify(alerts=rows, stats=dict(
+            'SELECT threat_type, COUNT(*) n FROM alerts' + where_sql +
+            ' GROUP BY threat_type', params)}
+    response = dict(alerts=rows, stats=dict(
         total=s['t'] or 0, high=s['h'] or 0, signature=s['s'] or 0,
         anomaly=s['a'] or 0, by_type=by_type))
+    response['range'] = {'since': range_since, 'until': range_until} if where else None
+    return jsonify(response)
 
 @app.route('/api/alerts/<int:alert_id>')
 def alert_detail(alert_id):

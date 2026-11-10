@@ -297,6 +297,7 @@ tbody tr:hover {
     display: flex;
     gap: 1rem;
     flex-wrap: wrap;
+    align-items: center;
 }
 
 .filter-bar input,
@@ -306,6 +307,30 @@ tbody tr:hover {
     color: #f8fafc;
     border: 1px solid #334155;
     border-radius: 8px;
+}
+
+#custom-range-controls {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+#custom-range-controls[hidden] {
+    display: none;
+}
+
+.range-info {
+    display: block;
+    margin: 0.75rem 0;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.range-error {
+    display: block;
+    margin: 0.5rem 0;
+    color: #fda4af;
+    font-size: 0.9rem;
 }
 
 #traffic-table tbody tr {

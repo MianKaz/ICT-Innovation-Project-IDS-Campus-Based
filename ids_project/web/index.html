@@ -53,6 +53,23 @@
 
         <section class="table-container">
             <h3>Real-Time Alert Feed</h3>
+            <div id="time-filter" class="filter-bar">
+                <select id="range-select" aria-label="Alert time range">
+                    <option value="all">All time</option>
+                    <option value="5">Last 5 minutes</option>
+                    <option value="15">Last 15 minutes</option>
+                    <option value="60">Last 1 hour</option>
+                    <option value="1440">Last 24 hours</option>
+                    <option value="custom">Custom range</option>
+                </select>
+                <div id="custom-range-controls" class="filter-bar" hidden>
+                    <input id="range-from" type="datetime-local" aria-label="From">
+                    <input id="range-to" type="datetime-local" aria-label="To">
+                    <button id="range-apply" class="btn" type="button">Apply</button>
+                </div>
+            </div>
+            <span id="range-info" class="range-info" aria-live="polite"></span>
+            <span id="range-error" class="range-error" role="alert"></span>
             <div class="table-scroll-wrapper">
                 <table id="alerts-table">
                     <thead>

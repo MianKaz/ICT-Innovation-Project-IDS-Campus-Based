@@ -208,9 +208,147 @@ function alertRow(a) {
         </tr>`;
 }
 
+let appliedCustomRange = null;
+
+function getRangeQuery() {
+    if (!document.getElementById('time-filter')) return '';
+
+    const select = document.getElementById('range-select');
+    if (!select || select.value === 'all') return '';
+    if (select.value === 'custom') {
+        if (!appliedCustomRange) {
+            return '';
+        }
+        return `&since=${encodeURIComponent(appliedCustomRange.from)}` +
+            `&until=${encodeURIComponent(appliedCustomRange.to)}`;
+    }
+
+    return /^\d+$/.test(select.value) ? `&minutes=${encodeURIComponent(select.value)}` : '';
+}
+
+function formatRangeDate(value) {
+    const date = new Date(value);
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(date).reduce((result, part) => {
+        result[part.type] = part.value;
+        return result;
+    }, {});
+    return `${parts.day} ${parts.month} ${parts.hour}:${parts.minute}`;
+}
+
+function updateRangeInfo(alerts, stats, range) {
+    const info = document.getElementById('range-info');
+    if (!info) return;
+    if (!alerts.length) {
+        info.textContent = 'No alerts in this time range';
+        return;
+    }
+
+    const total = Number(stats.total) || 0;
+    const shown = alerts.length;
+    let message = total > shown
+        ? `Showing ${shown} of ${total} alerts`
+        : `Showing ${total} alerts`;
+    const select = document.getElementById('range-select');
+    if (!select || select.value === 'all') {
+        info.textContent = total > shown
+            ? `Showing ${shown} of ${total} alerts`
+            : 'Showing all alerts';
+        return;
+    } else if (select.value === 'custom' && range) {
+        message += ` from ${formatRangeDate(range.since)} to ${formatRangeDate(range.until)}`;
+    } else if (select.value === 'custom') {
+        info.textContent = 'Apply a valid custom range to filter alerts';
+        return;
+    } else if (select.selectedOptions.length) {
+        message += ` from the ${select.selectedOptions[0].textContent.toLowerCase()}`;
+    }
+    info.textContent = message;
+}
+
+function setupTimeFilter() {
+    const filter = document.getElementById('time-filter');
+    if (!filter) return;
+
+    const select = document.getElementById('range-select');
+    const from = document.getElementById('range-from');
+    const to = document.getElementById('range-to');
+    const controls = document.getElementById('custom-range-controls');
+    const apply = document.getElementById('range-apply');
+    const error = document.getElementById('range-error');
+    const storageKey = 'ids-dashboard-time-filter';
+
+    const toggleCustomControls = () => {
+        controls.hidden = select.value !== 'custom';
+    };
+    const saveSelection = () => {
+        try {
+            localStorage.setItem(storageKey, JSON.stringify({
+                selection: select.value,
+                from: from.value,
+                to: to.value,
+                appliedFrom: appliedCustomRange ? appliedCustomRange.from : '',
+                appliedTo: appliedCustomRange ? appliedCustomRange.to : ''
+            }));
+        } catch (storageError) {
+            console.warn('Could not save dashboard time filter:', storageError);
+        }
+    };
+
+    try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+        if (saved && [...select.options].some(option => option.value === saved.selection)) {
+            select.value = saved.selection;
+            from.value = typeof saved.from === 'string' ? saved.from : '';
+            to.value = typeof saved.to === 'string' ? saved.to : '';
+            const appliedFrom = typeof saved.appliedFrom === 'string' ? saved.appliedFrom : '';
+            const appliedTo = typeof saved.appliedTo === 'string' ? saved.appliedTo : '';
+            if (appliedFrom && appliedTo && Date.parse(appliedFrom) < Date.parse(appliedTo)) {
+                appliedCustomRange = { from: appliedFrom, to: appliedTo };
+            }
+        }
+    } catch (storageError) {
+        console.warn('Could not restore dashboard time filter:', storageError);
+    }
+    toggleCustomControls();
+
+    select.addEventListener('change', () => {
+        error.textContent = '';
+        toggleCustomControls();
+        saveSelection();
+        loadAlerts();
+    });
+
+    [from, to].forEach(input => input.addEventListener('input', () => {
+        error.textContent = '';
+        saveSelection();
+    }));
+
+    apply.addEventListener('click', () => {
+        const fromTime = Date.parse(from.value);
+        const toTime = Date.parse(to.value);
+        if (!from.value || !to.value || !Number.isFinite(fromTime) ||
+            !Number.isFinite(toTime) || fromTime >= toTime) {
+            error.textContent = 'Choose a valid start and end time; the start must be earlier than the end.';
+            saveSelection();
+            return;
+        }
+
+        error.textContent = '';
+        appliedCustomRange = { from: from.value, to: to.value };
+        saveSelection();
+        loadAlerts();
+    });
+}
+
 async function loadAlerts() {
     try {
-        const { alerts, stats } = await fetchJSON('/alerts?limit=100');
+        const { alerts, stats, range } = await fetchJSON(`/alerts?limit=100${getRangeQuery()}`);
 
         // stat cards
         setText('total-alerts', stats.total);
@@ -221,11 +359,20 @@ async function loadAlerts() {
         // alert table (newest first)
         const tbody = document.getElementById('alerts-body');
         if (tbody) {
-            tbody.innerHTML = alerts.map(alertRow).join('');
+            tbody.innerHTML = alerts.length
+                ? alerts.map(alertRow).join('')
+                : '<tr><td colspan="7">No alerts in this time range</td></tr>';
         }
 
         // chart
-        updateChartData(Object.keys(stats.by_type), Object.values(stats.by_type));
+        if (alerts.length) {
+            updateChartData(Object.keys(stats.by_type), Object.values(stats.by_type));
+        } else {
+            ['total-alerts', 'high-alerts', 'sig-threats', 'anomaly-threats']
+                .forEach(id => setText(id, 0));
+            updateChartData([], []);
+        }
+        updateRangeInfo(alerts, stats, range);
 
         // notifications: oldest first so the newest ends up on top
         [...alerts].reverse().forEach(a => {
@@ -357,6 +504,7 @@ function setupClearButton() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+    setupTimeFilter();
     loadAlerts();
     loadPackets();
     loadHistory();
