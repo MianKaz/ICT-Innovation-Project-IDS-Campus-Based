@@ -38,6 +38,19 @@
 
         <section class="table-container">
             <h3>All Historical Alert Logs</h3>
+            <nav class="history-pagination" aria-label="Alert history pages">
+                <button id="history-refresh" class="btn" type="button">Refresh logs</button>
+                <span id="history-new-alert-count" class="history-new-alert-count" aria-live="polite">
+                    New alerts since refresh: 0
+                </span>
+                <button id="history-previous-page" class="btn secondary" type="button">Previous</button>
+                <button id="history-next-page" class="btn secondary" type="button">Next</button>
+                <label for="history-page-input">Page</label>
+                <input id="history-page-input" type="number" min="1" value="1" aria-label="Page number">
+                <button id="history-go-to-page" class="btn secondary" type="button">Go</button>
+                <button id="history-last-page" class="btn secondary" type="button">Last page</button>
+                <span id="history-page-info" aria-live="polite">Page 1 of 1 (0 alerts)</span>
+            </nav>
             <table id="history-alerts-table">
                 <thead>
                     <tr>

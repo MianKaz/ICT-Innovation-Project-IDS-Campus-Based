@@ -410,19 +410,152 @@ async function loadPackets() {
 }
 
 
+const HISTORY_PAGE_SIZE = 25;
 let historyAlerts = [];
+let historyPage = 1;
+let historyPageCount = 1;
+let historyRequestId = 0;
+let historyKnownTotal = null;
+let historyCountRequestId = 0;
+let historyBaselineVersion = 0;
 
-async function loadHistory() {
+function updateNewHistoryAlertCount(count) {
+    const counter = document.getElementById('history-new-alert-count');
+    if (counter) {
+        counter.textContent = `New alerts since refresh: ${count}`;
+    }
+}
+
+function updateHistoryPagination(total) {
+    historyPageCount = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
+    const previousBtn = document.getElementById('history-previous-page');
+    const nextBtn = document.getElementById('history-next-page');
+    const lastBtn = document.getElementById('history-last-page');
+    const pageInput = document.getElementById('history-page-input');
+    const pageInfo = document.getElementById('history-page-info');
+
+    if (previousBtn) previousBtn.disabled = historyPage <= 1;
+    if (nextBtn) nextBtn.disabled = historyPage >= historyPageCount;
+    if (lastBtn) lastBtn.disabled = historyPage >= historyPageCount;
+    if (pageInput) {
+        pageInput.max = historyPageCount;
+        if (document.activeElement !== pageInput) pageInput.value = historyPage;
+    }
+    if (pageInfo) {
+        pageInfo.textContent = `Page ${historyPage} of ${historyPageCount} (${total} alerts)`;
+    }
+}
+
+async function loadHistory({ resetNewCount = false, latest = false } = {}) {
     const tbody = document.getElementById('history-alerts-body');
-    if (!tbody) return;
+    if (!tbody) return false;
 
+    const requestId = ++historyRequestId;
     try {
-        const { alerts } = await fetchJSON('/alerts?limit=100000');
-        historyAlerts = alerts;
-        tbody.innerHTML = alerts.map(alertRow).join('');
+        const { alerts: newestFirst, stats } = await fetchJSON('/alerts?limit=100000');
+        if (requestId !== historyRequestId) return false;
+
+        const total = stats.total;
+        const lastPage = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
+        historyPage = latest ? lastPage : Math.min(historyPage, lastPage);
+
+        const oldestFirst = newestFirst.reverse();
+        const start = (historyPage - 1) * HISTORY_PAGE_SIZE;
+        historyAlerts = oldestFirst.slice(start, start + HISTORY_PAGE_SIZE);
+        tbody.innerHTML = historyAlerts.map(alertRow).join('');
+        updateHistoryPagination(total);
+        if (resetNewCount) {
+            historyBaselineVersion++;
+            historyKnownTotal = total;
+            updateNewHistoryAlertCount(0);
+        } else if (historyKnownTotal === null) {
+            historyKnownTotal = total;
+        }
+        return true;
     } catch (err) {
         console.error('Failed to load history:', err);
+        return false;
     }
+}
+
+async function checkForNewHistoryAlerts() {
+    const requestId = ++historyCountRequestId;
+    const baselineVersion = historyBaselineVersion;
+    try {
+        const { stats } = await fetchJSON('/alerts?limit=1');
+        if (requestId !== historyCountRequestId || baselineVersion !== historyBaselineVersion) return;
+
+        if (historyKnownTotal === null) {
+            historyKnownTotal = stats.total;
+            return;
+        }
+        updateNewHistoryAlertCount(Math.max(0, stats.total - historyKnownTotal));
+    } catch (err) {
+        console.error('Failed to check for new history alerts:', err);
+    }
+}
+
+function setupHistoryRefresh() {
+    const refreshBtn = document.getElementById('history-refresh');
+    if (!refreshBtn) return;
+
+    refreshBtn.addEventListener('click', async () => {
+        const previousPage = historyPage;
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = 'Refreshing...';
+        try {
+            const refreshed = await loadHistory({ resetNewCount: true, latest: true });
+            if (!refreshed) historyPage = previousPage;
+        } finally {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = 'Refresh logs';
+        }
+    });
+}
+
+function setupHistoryPagination() {
+    const previousBtn = document.getElementById('history-previous-page');
+    const nextBtn = document.getElementById('history-next-page');
+    const lastBtn = document.getElementById('history-last-page');
+    const pageInput = document.getElementById('history-page-input');
+    const goBtn = document.getElementById('history-go-to-page');
+    if (!previousBtn || !nextBtn || !lastBtn || !pageInput || !goBtn) return;
+
+    previousBtn.addEventListener('click', () => {
+        if (historyPage > 1) {
+            historyPage--;
+            loadHistory();
+        }
+    });
+    nextBtn.addEventListener('click', () => {
+        if (historyPage < historyPageCount) {
+            historyPage++;
+            loadHistory();
+        }
+    });
+    lastBtn.addEventListener('click', () => {
+        historyPage = historyPageCount;
+        loadHistory();
+    });
+
+    const goToPage = () => {
+        const page = pageInput.valueAsNumber;
+        if (!Number.isInteger(page) || page < 1 || page > historyPageCount) {
+            pageInput.setCustomValidity(`Enter a page from 1 to ${historyPageCount}.`);
+            pageInput.reportValidity();
+            return;
+        }
+        pageInput.setCustomValidity('');
+        if (page !== historyPage) {
+            historyPage = page;
+            loadHistory();
+        }
+    };
+    goBtn.addEventListener('click', goToPage);
+    pageInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') goToPage();
+    });
+    pageInput.addEventListener('input', () => pageInput.setCustomValidity(''));
 }
 
 function downloadFile(filename, text, type) {
@@ -439,18 +572,28 @@ function setupExportButtons() {
     const csvBtn = document.getElementById('export-csv-btn');
 
     if (jsonBtn) {
-        jsonBtn.addEventListener('click', () => {
-            downloadFile('ids_alerts.json', JSON.stringify(historyAlerts, null, 2), 'application/json');
+        jsonBtn.addEventListener('click', async () => {
+            try {
+                const { alerts } = await fetchJSON('/alerts?limit=100000');
+                downloadFile('ids_alerts.json', JSON.stringify(alerts, null, 2), 'application/json');
+            } catch (err) {
+                alert(`Failed to export alerts: ${err.message}`);
+            }
         });
     }
 
     if (csvBtn) {
-        csvBtn.addEventListener('click', () => {
-            const cols = ['timestamp', 'threat_type', 'source_ip', 'source_port',
-                          'destination_ip', 'destination_port', 'confidence'];
-            const rows = historyAlerts.map(a =>
-                cols.map(c => `"${String(a[c] ?? '').replace(/"/g, '""')}"`).join(','));
-            downloadFile('ids_alerts.csv', [cols.join(','), ...rows].join('\n'), 'text/csv');
+        csvBtn.addEventListener('click', async () => {
+            try {
+                const { alerts } = await fetchJSON('/alerts?limit=100000');
+                const cols = ['timestamp', 'threat_type', 'source_ip', 'source_port',
+                              'destination_ip', 'destination_port', 'confidence'];
+                const rows = alerts.map(a =>
+                    cols.map(c => `"${String(a[c] ?? '').replace(/"/g, '""')}"`).join(','));
+                downloadFile('ids_alerts.csv', [cols.join(','), ...rows].join('\n'), 'text/csv');
+            } catch (err) {
+                alert(`Failed to export alerts: ${err.message}`);
+            }
         });
     }
 }
@@ -492,7 +635,8 @@ function setupClearButton() {
              'anomaly-threats'].forEach(id => setText(id, 0));
             updateChartData([], []);
             loadAlerts();
-            loadHistory();
+            historyPage = 1;
+            loadHistory({ resetNewCount: true });
             loadPackets();
             alert('All alerts and history have been cleared.');
         } catch (err) {
@@ -507,12 +651,14 @@ window.addEventListener('DOMContentLoaded', () => {
     setupTimeFilter();
     loadAlerts();
     loadPackets();
-    loadHistory();
+    setupHistoryPagination();
+    setupHistoryRefresh();
+    loadHistory({ resetNewCount: true });
+    setInterval(checkForNewHistoryAlerts, 10000);
     setupExportButtons();
     setupClearButton();
     setInterval(loadAlerts, 3000);
     setInterval(loadPackets, 2000);
-    setInterval(loadHistory, 10000);
 });
 
 // ---------------------------------------------------------------

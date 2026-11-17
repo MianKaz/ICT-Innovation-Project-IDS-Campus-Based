@@ -34,6 +34,12 @@ def home():
 @app.route('/api/alerts')
 def alerts():
     limit = request.args.get('limit', 100, type=int)
+    offset = request.args.get('offset', 0, type=int)
+    if offset < 0:
+        return jsonify(error='offset must be a non-negative integer'), 400
+    order = request.args.get('order', 'desc').lower()
+    if order not in ('asc', 'desc'):
+        return jsonify(error="order must be 'asc' or 'desc'"), 400
     where = []
     params = []
     range_since = None
@@ -82,8 +88,8 @@ def alerts():
     where_sql = ' WHERE ' + ' AND '.join(where) if where else ''
     with db() as con:
         rows = [dict(r) for r in con.execute(
-            'SELECT * FROM alerts' + where_sql + ' ORDER BY id DESC LIMIT ?',
-            params + [limit])]
+            f'SELECT * FROM alerts{where_sql} ORDER BY id {order.upper()} LIMIT ? OFFSET ?',
+            params + [limit, offset])]
         s = con.execute(
             "SELECT COUNT(*) t, SUM(confidence >= 0.85) h, "
             "SUM(detector IN ('signature', 'random_forest')) s, "
